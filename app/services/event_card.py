@@ -16,18 +16,14 @@ def build_event_text(event: dict) -> str:
     return "\n".join(lines)
 
 
-def build_event_keyboard(event: dict, going: int = 0, interested: int = 0, bot_username: str = "") -> InlineKeyboardMarkup:
+def build_event_keyboard(event: dict, rsvp_count: int = 0, bot_username: str = "") -> InlineKeyboardMarkup:
     event_id = event["event_id"]
 
     rows = [
         [
             InlineKeyboardButton(
-                f"I'm going! 🙋‍♂️ ({going})",
-                callback_data=f"rsvp:going:{event_id}",
-            ),
-            InlineKeyboardButton(
-                f"Interested 👀 ({interested})",
-                callback_data=f"rsvp:interested:{event_id}",
+                f"RSVP \U0001f64b ({rsvp_count})",
+                callback_data=f"rsvp:{event_id}",
             ),
         ],
         [
@@ -58,14 +54,9 @@ async def send_event_card(bot: Bot, chat_id: int, event: dict):
     from app.services.supabase_client import get_rsvp_counts
 
     text = build_event_text(event)
-    counts = get_rsvp_counts(event["event_id"])
+    count = get_rsvp_counts(event["event_id"])
     bot_username = (await bot.get_me()).username or ""
-    keyboard = build_event_keyboard(
-        event,
-        going=counts["going_count"],
-        interested=counts["interested_count"],
-        bot_username=bot_username,
-    )
+    keyboard = build_event_keyboard(event, rsvp_count=count, bot_username=bot_username)
 
     image_url = event.get("image_url")
     if not image_url:

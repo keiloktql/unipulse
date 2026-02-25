@@ -91,7 +91,7 @@ if (accessToken) {
 
 @app.post("/auth/complete")
 async def auth_complete(request: Request):
-    """Verify access token, create account, notify user via Telegram."""
+    """Verify access token, create account, send onboarding via Telegram."""
     data = await request.json()
     access_token = data.get("access_token")
     if not access_token:
@@ -106,45 +106,34 @@ async def auth_complete(request: Request):
     if not auth_user or not auth_user.email:
         return JSONResponse({"ok": False, "message": "Could not verify email. Please try /verify again."})
 
-    # Look up pending verification
-    from app.handlers.verify import pending_verifications
-
-    email = auth_user.email.lower()
-    pending = pending_verifications.pop(email, None)
-    if not pending:
-        return JSONResponse({"ok": False, "message": "No pending verification for this email. Please run /verify first."})
-
-    telegram_id = pending["telegram_id"]
-    tele_handle = pending["tele_handle"]
+    # Read telegram_id and tele_handle from Auth user metadata (set at OTP send time)
+    meta = auth_user.user_metadata or {}
+    telegram_id = meta.get("telegram_id")
+    tele_handle = meta.get("tele_handle")
+    if not telegram_id or not tele_handle:
+        return JSONResponse({"ok": False, "message": "No pending verification found. Please run /verify first."})
 
     # Create/update account
+    account_id = str(auth_user.id)
+    email = auth_user.email.lower()
     try:
         supabase.table("accounts").upsert({
-            "account_id": str(auth_user.id),
+            "account_id": account_id,
             "telegram_id": telegram_id,
             "tele_handle": tele_handle,
-            "is_verified": True,
-            "auth_user_id": str(auth_user.id),
         }, on_conflict="account_id").execute()
         logger.info("User verified: @%s (%s)", tele_handle, email)
     except Exception as e:
         logger.error("Failed to save account: %s", e)
         return JSONResponse({"ok": False, "message": "Verification succeeded but failed to save. Please contact support."})
 
-    # Send confirmation via Telegram
+    # Send full onboarding flow via Telegram
     if ptb_app:
         try:
-            await ptb_app.bot.send_message(
-                chat_id=telegram_id,
-                text=(
-                    "You're verified!\n\n"
-                    "You now have full access to UniPulse.\n"
-                    "Use /events to browse, /subscribe to follow categories,\n"
-                    "and post events in group chats with #unipulse."
-                ),
-            )
+            from app.handlers.onboarding import send_onboarding
+            await send_onboarding(ptb_app.bot, telegram_id, account_id)
         except Exception as e:
-            logger.error("Failed to send verification confirmation to %s: %s", telegram_id, e)
+            logger.error("Failed to send onboarding to %s: %s", telegram_id, e)
 
     return JSONResponse({"ok": True, "message": "You're verified! You can close this tab and return to Telegram."})
 

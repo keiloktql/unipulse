@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     WEBHOOK_SECRET: str
     SUPABASE_URL: str
     SUPABASE_SECRET_KEY: str
+    SUPABASE_PUBLISHABLE_KEY: str
     GEMINI_API_KEY: str
 
     class Config:

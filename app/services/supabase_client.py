@@ -11,11 +11,22 @@ supabase: Client = create_client(settings.SUPABASE_URL, settings.SUPABASE_SECRET
 
 # --- Auth ---
 
-def send_verification_email(email: str, redirect_url: str):
-    """Send a magic link email for NUS identity verification."""
-    supabase.auth.sign_in_with_otp({
+def send_verification_email(email: str, redirect_url: str, telegram_id: int, tele_handle: str):
+    """Send a confirmation email for NUS identity verification.
+
+    Stores telegram_id and tele_handle in Supabase Auth user metadata so they
+    are available when the confirmation link is clicked — no separate pending table needed.
+    """
+    supabase.auth.sign_up({
         "email": email,
-        "options": {"email_redirect_to": redirect_url},
+        "password": str(uuid.uuid4()),
+        "options": {
+            "email_redirect_to": redirect_url,
+            "data": {
+                "telegram_id": telegram_id,
+                "tele_handle": tele_handle,
+            },
+        },
     })
 
 
@@ -111,32 +122,34 @@ def save_event_image(event_id: str, url: str) -> dict:
 
 # --- RSVPs ---
 
-def upsert_rsvp(event_id: str, account_id: str, status: str) -> dict:
+def upsert_rsvp(event_id: str, account_id: str) -> int:
+    """Toggle RSVP for this user+event. Returns updated total RSVP count."""
     result = supabase.rpc("upsert_rsvp", {
         "p_event_id": event_id,
         "p_account_id": account_id,
-        "p_status": status,
     }).execute()
-    return result.data[0]
+    return result.data or 0
 
 
-def get_rsvp_counts(event_id: str) -> dict:
-    going = supabase.table("rsvps").select("rsvp_id", count="exact").eq("fk_event_id", event_id).eq("status", "going").execute()
-    interested = supabase.table("rsvps").select("rsvp_id", count="exact").eq("fk_event_id", event_id).eq("status", "interested").execute()
-    return {
-        "going_count": going.count or 0,
-        "interested_count": interested.count or 0,
-    }
+def get_rsvp_counts(event_id: str) -> int:
+    """Return total RSVP count for an event."""
+    result = (
+        supabase.table("rsvps")
+        .select("rsvp_id", count="exact")
+        .eq("fk_event_id", event_id)
+        .execute()
+    )
+    return result.count or 0
 
 
 # --- Admins ---
 
 def is_verified_admin(tele_handle: str) -> bool:
+    """A user is verified if they have an account record (account_id FK'd to auth.users)."""
     result = (
         supabase.table("accounts")
         .select("account_id")
         .eq("tele_handle", tele_handle)
-        .eq("is_verified", True)
         .maybe_single()
         .execute()
     )
@@ -144,11 +157,11 @@ def is_verified_admin(tele_handle: str) -> bool:
 
 
 def is_verified_admin_by_telegram_id(telegram_id: int) -> bool:
+    """A user is verified if they have an account record (account_id FK'd to auth.users)."""
     result = (
         supabase.table("accounts")
         .select("account_id")
         .eq("telegram_id", telegram_id)
-        .eq("is_verified", True)
         .maybe_single()
         .execute()
     )
@@ -224,3 +237,26 @@ def search_events(query: Optional[str] = None, category: Optional[str] = None, l
         "p_limit": limit,
     }).execute()
     return result.data
+
+
+# --- Event editing ---
+
+def update_event(event_id: str, **fields) -> dict:
+    """Update specific fields on an event."""
+    result = supabase.table("events").update(fields).eq("event_id", event_id).execute()
+    return result.data[0]
+
+
+def get_events_by_account(account_id: str, limit: int = 10) -> List[dict]:
+    """Get all events (including deleted) posted by this account, newest first."""
+    result = (
+        supabase.table("events")
+        .select("*")
+        .eq("fk_account_id", account_id)
+        .order("created_at", desc=True)
+        .limit(limit)
+        .execute()
+    )
+    return result.data
+
+

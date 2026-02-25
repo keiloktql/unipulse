@@ -16,45 +16,40 @@ async def handle_rsvp(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
 
-    # Parse callback data: "rsvp:going:event_uuid" or "rsvp:interested:event_uuid"
-    parts = query.data.split(":")
-    if len(parts) != 3:
+    # Parse callback data: "rsvp:event_uuid"
+    parts = query.data.split(":", 1)
+    if len(parts) != 2:
         return
 
-    _, status, event_id = parts
+    _, event_id = parts
 
     account = get_verified_account(query.from_user.id)
     if not account:
         await query.answer(VERIFY_MSG, show_alert=True)
         return
 
-    # Atomic upsert via Supabase RPC
-    counts = upsert_rsvp(event_id, account["account_id"], status)
-    logger.info("RSVP updated: event=%s account=%s status=%s counts=%s", event_id, account["account_id"], status, counts)
+    # Atomic RSVP toggle via Supabase RPC — returns updated total count
+    new_count = upsert_rsvp(event_id, account["account_id"])
+    logger.info("RSVP toggled: event=%s account=%s new_count=%s", event_id, account["account_id"], new_count)
 
     # Re-fetch event for full data
     event = get_event(event_id)
     if not event:
         return
 
-    # Auto-create reminders when user RSVPs "going"
-    if status == "going" and event.get("date"):
+    # Auto-create reminders on RSVP (create_reminders_for_event guards against duplicates)
+    if event.get("date"):
         try:
             event_dt = datetime.fromisoformat(event["date"])
             create_reminders_for_event(account["account_id"], event_id, event_dt)
         except (ValueError, TypeError):
             pass
 
-    # Rebuild keyboard with updated counts from RPC
-    new_keyboard = build_event_keyboard(
-        event,
-        going=counts["new_going_count"],
-        interested=counts["new_interested_count"],
-    )
+    # Rebuild keyboard with updated count
+    bot_username = (await query.get_bot().get_me()).username or ""
+    new_keyboard = build_event_keyboard(event, rsvp_count=new_count, bot_username=bot_username)
 
-    # Edit the message to update button labels
     try:
         await query.edit_message_reply_markup(reply_markup=new_keyboard)
     except Exception:
-        # Message not modified (same counts) — Telegram throws an error, ignore
         pass

@@ -13,9 +13,6 @@ EMAIL = 0
 
 NUS_EMAIL_PATTERN = re.compile(r"^[^@]+@(u\.nus\.edu|nus\.edu\.sg)$", re.IGNORECASE)
 
-# Pending verifications: email -> {telegram_id, tele_handle}
-pending_verifications: dict[str, dict] = {}
-
 
 async def start_verify(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_chat.type != "private":
@@ -47,19 +44,18 @@ async def receive_email(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     user = update.effective_user
 
-    # Store pending verification
-    pending_verifications[email] = {
-        "telegram_id": user.id,
-        "tele_handle": user.username,
-    }
-
-    # Send magic link email via Supabase Auth
+    # Send magic link — telegram_id and tele_handle are embedded in Auth user metadata
+    # so they're available at callback time without any separate storage
     try:
-        send_verification_email(email, f"{settings.WEBHOOK_URL}/auth/callback")
+        send_verification_email(
+            email,
+            f"{settings.WEBHOOK_URL}/auth/callback",
+            telegram_id=user.id,
+            tele_handle=user.username,
+        )
         logger.info("Confirmation email sent to %s for user @%s", email, user.username)
     except Exception as e:
-        logger.error("Failed to send confirmation email: %s", e)
-        pending_verifications.pop(email, None)
+        logger.exception("Failed to send confirmation email: %s", e)
         await update.message.reply_text(
             "Failed to send verification email. Please try again later.\n"
             "Use /verify to restart."

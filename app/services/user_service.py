@@ -7,12 +7,15 @@ VERIFY_MSG = "🔒 You need to verify your NUS identity first.\nDM me with /veri
 
 
 def get_verified_account(telegram_id: int) -> Optional[dict]:
-    """Return verified account for this telegram_id, or None if not verified."""
+    """Return account for this telegram_id, or None if not found.
+
+    Having an account record means the user has completed NUS email verification
+    (account_id is FK'd to auth.users, so it can only exist post-verification).
+    """
     result = (
         supabase.table("accounts")
         .select("*")
         .eq("telegram_id", telegram_id)
-        .eq("is_verified", True)
         .maybe_single()
         .execute()
     )

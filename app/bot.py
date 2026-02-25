@@ -8,7 +8,20 @@ from telegram.ext import (
 )
 
 from app.config import settings
-from app.handlers import admin, browse, find, newslettertime, parser, remind, rsvp, start, subscribe, verify
+from app.handlers import (
+    admin,
+    browse,
+    edit,
+    find,
+    moderation,
+    newslettertime,
+    parser,
+    remind,
+    rsvp,
+    start,
+    subscribe,
+    verify,
+)
 
 
 def create_application():
@@ -19,7 +32,7 @@ def create_application():
         .build()
     )
 
-    # Admin verification conversation (DM only)
+    # Verification conversation (DM only)
     verify_conv = ConversationHandler(
         entry_points=[CommandHandler("verify", verify.start_verify)],
         states={
@@ -28,11 +41,29 @@ def create_application():
         fallbacks=[CommandHandler("cancel", verify.cancel)],
     )
 
+    # Event edit conversation
+    edit_conv = ConversationHandler(
+        entry_points=[CommandHandler("edit", edit.edit_command)],
+        states={
+            edit.CHOOSE_FIELD: [
+                CallbackQueryHandler(edit.choose_field, pattern=r"^edit_field:"),
+            ],
+            edit.ENTER_VALUE: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, edit.enter_value),
+            ],
+        },
+        fallbacks=[CommandHandler("cancel", edit.cancel_edit)],
+        per_message=False,
+    )
+
     # /start
     application.add_handler(CommandHandler("start", start.start_command))
 
-    # Admin verification
+    # Verification
     application.add_handler(verify_conv)
+
+    # Edit (must come before generic message handler)
+    application.add_handler(edit_conv)
 
     # Subscribe command
     application.add_handler(CommandHandler("subscribe", subscribe.subscribe_command))
@@ -44,15 +75,19 @@ def create_application():
     application.add_handler(CommandHandler("newslettertime", newslettertime.newslettertime_command))
     application.add_handler(CommandHandler("delete", admin.delete_event_command))
 
+    # Moderation panel
+    application.add_handler(CommandHandler("manage", moderation.manage_command))
+
     # Smart Parser: listen for #unipulse in group chats
     application.add_handler(MessageHandler(
         filters.ChatType.GROUPS & filters.Regex(r"(?i)#unipulse"),
         parser.handle_event_message,
     ))
 
-    # Callback query handlers
+    # Callback query handlers (order matters: most specific patterns first)
     application.add_handler(CallbackQueryHandler(rsvp.handle_rsvp, pattern=r"^rsvp:"))
     application.add_handler(CallbackQueryHandler(subscribe.handle_subscription_toggle, pattern=r"^sub:"))
     application.add_handler(CallbackQueryHandler(remind.handle_remind_button, pattern=r"^remind:"))
+    application.add_handler(CallbackQueryHandler(moderation.handle_moderation_callback, pattern=r"^mod:"))
 
     return application

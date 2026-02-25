@@ -9,12 +9,12 @@ logger = logging.getLogger(__name__)
 
 
 async def check_due_reminders(bot: Bot):
-    """Runs every minute. Finds and sends reminders where remind_at <= now and sent = false."""
+    """Runs every minute. Finds and sends reminders where remind_at <= now and is_sent = false."""
     now = datetime.now(timezone.utc).isoformat()
     result = (
         supabase.table("reminders")
         .select("*, accounts(telegram_id), events(text, date)")
-        .eq("sent", False)
+        .eq("is_sent", False)
         .lte("remind_at", now)
         .limit(100)
         .execute()
@@ -42,10 +42,10 @@ async def check_due_reminders(bot: Bot):
                     "This event is coming up soon!"
                 ),
             )
-            # Mark as sent
+            # Mark as is_sent
             (
                 supabase.table("reminders")
-                .update({"sent": True})
+                .update({"is_sent": True})
                 .eq("reminder_id", reminder["reminder_id"])
                 .execute()
             )

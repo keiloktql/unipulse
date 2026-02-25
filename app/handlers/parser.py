@@ -52,15 +52,19 @@ async def handle_event_message(update: Update, context: ContextTypes.DEFAULT_TYP
     if not user:
         return
 
-    # Check if poster is a verified admin
+    # Check if poster is a verified user
     if not is_verified_admin_by_telegram_id(user.id):
         await message.reply_text(
             "⚠️ You need to verify as an admin first. DM me with /verify"
         )
         return
 
-    # Rate limiting
-    if not check_rate_limit(user.id):
+    # Fetch account early so we can pass account_id to rate limiter
+    account = get_account_by_telegram_id(user.id)
+    account_id = account["account_id"] if account else None
+
+    # Rate limiting (DB-backed, persists across restarts)
+    if account_id and not check_rate_limit(account_id):
         await message.reply_text("⚠️ You've reached the posting limit (5/hour). Please wait before posting more events.")
         return
 
@@ -85,10 +89,6 @@ async def handle_event_message(update: Update, context: ContextTypes.DEFAULT_TYP
     if get_event_by_hash(text_hash):
         await message.reply_text("This event has already been posted!")
         return
-
-    # Get admin account
-    account = get_account_by_telegram_id(user.id)
-    account_id = account["account_id"] if account else None
 
     # Save event to database
     event = save_event(
