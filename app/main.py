@@ -52,41 +52,61 @@ async def webhook(request: Request):
     return Response(status_code=200)
 
 
-@app.get("/auth/callback")
-async def auth_callback():
-    """Supabase magic link redirects here with tokens in the URL fragment."""
-    return HTMLResponse(content="""<!DOCTYPE html>
+@app.get("/auth/callback/auth/confirm")
+async def auth_confirm(request: Request):
+    """Supabase sign_up confirmation link redirects here with ?token_hash=...&type=signup."""
+    token_hash = request.query_params.get("token_hash")
+    token_type = request.query_params.get("type", "signup")
+
+    def html_result(title: str, message: str) -> HTMLResponse:
+        return HTMLResponse(content=f"""<!DOCTYPE html>
 <html>
 <head><title>UniPulse Verification</title></head>
 <body style="font-family:sans-serif;text-align:center;padding:40px">
-<h2>Verifying your account...</h2>
-<p id="status">Please wait.</p>
-<script>
-const hash = window.location.hash.substring(1);
-const params = new URLSearchParams(hash);
-const accessToken = params.get('access_token');
-if (accessToken) {
-    fetch('/auth/complete', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({access_token: accessToken})
-    })
-    .then(r => r.json())
-    .then(data => {
-        document.querySelector('h2').textContent = data.ok ? 'Verified!' : 'Verification failed';
-        document.getElementById('status').textContent = data.message;
-    })
-    .catch(() => {
-        document.querySelector('h2').textContent = 'Error';
-        document.getElementById('status').textContent = 'Something went wrong. Please try /verify again.';
-    });
-} else {
-    document.querySelector('h2').textContent = 'Error';
-    document.getElementById('status').textContent = 'No token found. Please try /verify again.';
-}
-</script>
+<h2>{title}</h2>
+<p>{message}</p>
 </body>
 </html>""")
+
+    if not token_hash:
+        return html_result("Error", "No token found. Please try /verify again.")
+
+    try:
+        result = supabase.auth.verify_otp({"token_hash": token_hash, "type": token_type})
+    except Exception as e:
+        logger.exception("verify_otp failed: %s", e)
+        return html_result("Verification failed", "Invalid or expired link. Please try /verify again.")
+
+    auth_user = result.user if result else None
+    if not auth_user or not auth_user.email:
+        return html_result("Verification failed", "Could not verify email. Please try /verify again.")
+
+    meta = auth_user.user_metadata or {}
+    telegram_id = meta.get("telegram_id")
+    tele_handle = meta.get("tele_handle")
+    if not telegram_id or not tele_handle:
+        return html_result("Verification failed", "No pending verification found. Please run /verify first.")
+
+    account_id = str(auth_user.id)
+    try:
+        supabase.table("accounts").upsert({
+            "account_id": account_id,
+            "telegram_id": telegram_id,
+            "tele_handle": tele_handle,
+        }, on_conflict="account_id").execute()
+        logger.info("User verified: @%s (%s)", tele_handle, auth_user.email)
+    except Exception as e:
+        logger.error("Failed to save account: %s", e)
+        return html_result("Error", "Verification succeeded but failed to save. Please contact support.")
+
+    if ptb_app:
+        try:
+            from app.handlers.onboarding import send_onboarding
+            await send_onboarding(ptb_app.bot, telegram_id, account_id)
+        except Exception as e:
+            logger.error("Failed to send onboarding to %s: %s", telegram_id, e)
+
+    return html_result("Verified!", "You're verified! You can close this tab and return to Telegram.")
 
 
 @app.post("/auth/complete")

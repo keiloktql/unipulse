@@ -49,7 +49,7 @@ async def receive_email(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         send_verification_email(
             email,
-            f"{settings.WEBHOOK_URL}/auth/callback",
+            f"{settings.WEBHOOK_URL}/auth/callback/auth/confirm",
             telegram_id=user.id,
             tele_handle=user.username,
         )
