@@ -52,23 +52,23 @@ async def send_weekly_newsletter(bot: Bot):
         logger.info("No subscribed accounts for weekly newsletter")
         return
 
-    # Get telegram_ids for those accounts
+    # Get tele_ids for those accounts
     accounts = (
         supabase.table("accounts")
-        .select("telegram_id")
+        .select("tele_id")
         .in_("account_id", subscribed_account_ids)
         .execute()
     )
 
     sent_count = 0
     for account in accounts.data:
-        telegram_id = account.get("telegram_id")
-        if not telegram_id:
+        tele_id = account.get("tele_id")
+        if not tele_id:
             continue
         try:
-            await bot.send_message(chat_id=telegram_id, text=newsletter_text)
+            await bot.send_message(chat_id=tele_id, text=newsletter_text)
             sent_count += 1
         except Exception as e:
-            logger.error("Failed to send weekly newsletter to %s: %s", telegram_id, e)
+            logger.error("Failed to send weekly newsletter to %s: %s", tele_id, e)
 
     logger.info("Weekly newsletter sent to %d accounts", sent_count)

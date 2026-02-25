@@ -8,10 +8,10 @@ from telegram.ext import ContextTypes
 from app.middleware.rate_limit import check_rate_limit
 from app.services.gemini import parse_event
 from app.services.supabase_client import (
-    get_account_by_telegram_id,
+    get_account_by_tele_id,
     get_event_by_hash,
     get_or_create_category,
-    is_verified_admin_by_telegram_id,
+    is_verified_admin_by_tele_id,
     link_event_category,
     save_event,
     save_event_image,
@@ -53,14 +53,14 @@ async def handle_event_message(update: Update, context: ContextTypes.DEFAULT_TYP
         return
 
     # Check if poster is a verified user
-    if not is_verified_admin_by_telegram_id(user.id):
+    if not is_verified_admin_by_tele_id(user.id):
         await message.reply_text(
             "⚠️ You need to verify as an admin first. DM me with /verify"
         )
         return
 
     # Fetch account early so we can pass account_id to rate limiter
-    account = get_account_by_telegram_id(user.id)
+    account = get_account_by_tele_id(user.id)
     account_id = account["account_id"] if account else None
 
     # Rate limiting (DB-backed, persists across restarts)

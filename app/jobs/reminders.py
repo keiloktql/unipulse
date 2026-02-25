@@ -13,7 +13,7 @@ async def check_due_reminders(bot: Bot):
     now = datetime.now(timezone.utc).isoformat()
     result = (
         supabase.table("reminders")
-        .select("*, accounts(telegram_id), events(text, date)")
+        .select("*, accounts(tele_id), events(text, date)")
         .eq("is_sent", False)
         .lte("remind_at", now)
         .limit(100)
@@ -26,8 +26,8 @@ async def check_due_reminders(bot: Bot):
         if not account or not event:
             continue
 
-        telegram_id = account.get("telegram_id")
-        if not telegram_id:
+        tele_id = account.get("tele_id")
+        if not tele_id:
             continue
 
         event_text = event.get("text", "an event")
@@ -35,7 +35,7 @@ async def check_due_reminders(bot: Bot):
 
         try:
             await bot.send_message(
-                chat_id=telegram_id,
+                chat_id=tele_id,
                 text=(
                     f"⏰ Reminder: {event_text}\n\n"
                     f"📅 {event_date}\n\n"
@@ -49,6 +49,6 @@ async def check_due_reminders(bot: Bot):
                 .eq("reminder_id", reminder["reminder_id"])
                 .execute()
             )
-            logger.info("Sent reminder %s to telegram_id %s", reminder["reminder_id"], telegram_id)
+            logger.info("Sent reminder %s to tele_id %s", reminder["reminder_id"], tele_id)
         except Exception as e:
             logger.error("Failed to send reminder %s: %s", reminder["reminder_id"], e)

@@ -44,13 +44,13 @@ async def receive_email(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     user = update.effective_user
 
-    # Send magic link — telegram_id and tele_handle are embedded in Auth user metadata
+    # Send magic link — tele_id and tele_handle are embedded in Auth user metadata
     # so they're available at callback time without any separate storage
     try:
         send_verification_email(
             email,
             f"{settings.WEBHOOK_URL}/auth/callback",
-            telegram_id=user.id,
+            tele_id=user.id,
             tele_handle=user.username,
         )
         logger.info("Confirmation email sent to %s for user @%s", email, user.username)

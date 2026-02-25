@@ -47,12 +47,12 @@ def _build_category_keyboard(
     return InlineKeyboardMarkup(buttons)
 
 
-async def send_onboarding(bot: Bot, telegram_id: int, account_id: str):
+async def send_onboarding(bot: Bot, tele_id: int, account_id: str):
     """Send welcome message followed by category subscription keyboard."""
     try:
-        await bot.send_message(chat_id=telegram_id, text=WELCOME_TEXT)
+        await bot.send_message(chat_id=tele_id, text=WELCOME_TEXT)
     except Exception as e:
-        logger.error("Failed to send onboarding welcome to %s: %s", telegram_id, e)
+        logger.error("Failed to send onboarding welcome to %s: %s", tele_id, e)
         return
 
     categories = get_all_categories()
@@ -60,11 +60,11 @@ async def send_onboarding(bot: Bot, telegram_id: int, account_id: str):
         # No categories yet; just end with a hint
         try:
             await bot.send_message(
-                chat_id=telegram_id,
+                chat_id=tele_id,
                 text="No categories exist yet — they're created automatically when events are posted. Use /subscribe later to follow topics.",
             )
         except Exception as e:
-            logger.error("Failed to send onboarding category hint to %s: %s", telegram_id, e)
+            logger.error("Failed to send onboarding category hint to %s: %s", tele_id, e)
         return
 
     subscribed_ids = {s["fk_category_id"] for s in get_account_subscriptions(account_id)}
@@ -73,9 +73,9 @@ async def send_onboarding(bot: Bot, telegram_id: int, account_id: str):
 
     try:
         await bot.send_message(
-            chat_id=telegram_id,
+            chat_id=tele_id,
             text="Tap a category to subscribe:",
             reply_markup=keyboard,
         )
     except Exception as e:
-        logger.error("Failed to send onboarding category keyboard to %s: %s", telegram_id, e)
+        logger.error("Failed to send onboarding category keyboard to %s: %s", tele_id, e)

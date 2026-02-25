@@ -82,16 +82,16 @@ async def auth_confirm(request: Request):
         return html_result("Verification failed", "Could not verify email. Please try /verify again.")
 
     meta = auth_user.user_metadata or {}
-    telegram_id = meta.get("telegram_id")
+    tele_id = meta.get("tele_id")
     tele_handle = meta.get("tele_handle")
-    if not telegram_id or not tele_handle:
+    if not tele_id or not tele_handle:
         return html_result("Verification failed", "No pending verification found. Please run /verify first.")
 
     account_id = str(auth_user.id)
     try:
         supabase.table("accounts").upsert({
             "account_id": account_id,
-            "telegram_id": telegram_id,
+            "tele_id": tele_id,
             "tele_handle": tele_handle,
         }, on_conflict="account_id").execute()
         logger.info("User verified: @%s (%s)", tele_handle, auth_user.email)
@@ -102,9 +102,9 @@ async def auth_confirm(request: Request):
     if ptb_app:
         try:
             from app.handlers.onboarding import send_onboarding
-            await send_onboarding(ptb_app.bot, telegram_id, account_id)
+            await send_onboarding(ptb_app.bot, tele_id, account_id)
         except Exception as e:
-            logger.error("Failed to send onboarding to %s: %s", telegram_id, e)
+            logger.error("Failed to send onboarding to %s: %s", tele_id, e)
 
     return html_result("Verified!", "You're verified! You can close this tab and return to Telegram.")
 
@@ -126,11 +126,11 @@ async def auth_complete(request: Request):
     if not auth_user or not auth_user.email:
         return JSONResponse({"ok": False, "message": "Could not verify email. Please try /verify again."})
 
-    # Read telegram_id and tele_handle from Auth user metadata (set at OTP send time)
+    # Read tele_id and tele_handle from Auth user metadata (set at OTP send time)
     meta = auth_user.user_metadata or {}
-    telegram_id = meta.get("telegram_id")
+    tele_id = meta.get("tele_id")
     tele_handle = meta.get("tele_handle")
-    if not telegram_id or not tele_handle:
+    if not tele_id or not tele_handle:
         return JSONResponse({"ok": False, "message": "No pending verification found. Please run /verify first."})
 
     # Create/update account
@@ -139,7 +139,7 @@ async def auth_complete(request: Request):
     try:
         supabase.table("accounts").upsert({
             "account_id": account_id,
-            "telegram_id": telegram_id,
+            "tele_id": tele_id,
             "tele_handle": tele_handle,
         }, on_conflict="account_id").execute()
         logger.info("User verified: @%s (%s)", tele_handle, email)
@@ -151,9 +151,9 @@ async def auth_complete(request: Request):
     if ptb_app:
         try:
             from app.handlers.onboarding import send_onboarding
-            await send_onboarding(ptb_app.bot, telegram_id, account_id)
+            await send_onboarding(ptb_app.bot, tele_id, account_id)
         except Exception as e:
-            logger.error("Failed to send onboarding to %s: %s", telegram_id, e)
+            logger.error("Failed to send onboarding to %s: %s", tele_id, e)
 
     return JSONResponse({"ok": True, "message": "You're verified! You can close this tab and return to Telegram."})
 

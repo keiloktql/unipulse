@@ -22,7 +22,7 @@ async def check_newsletter_due(bot: Bot):
     )
 
     for account in accounts_result.data:
-        if not account.get("telegram_id"):
+        if not account.get("tele_id"):
             continue
         # Check last_newsletter_sent to prevent double-sends
         last_sent = account.get("last_newsletter_sent")
@@ -39,7 +39,7 @@ async def check_newsletter_due(bot: Bot):
 async def _send_newsletter_to_account(bot: Bot, account: dict, now: datetime):
     """Compile and send newsletter for a single account."""
     account_id = account["account_id"]
-    telegram_id = account["telegram_id"]
+    tele_id = account["tele_id"]
 
     # Get subscribed category IDs
     subs = (
@@ -94,7 +94,7 @@ async def _send_newsletter_to_account(bot: Bot, account: dict, now: datetime):
         lines.append(f"{date_str}\n{text_preview}\n")
 
     try:
-        await bot.send_message(chat_id=telegram_id, text="\n".join(lines))
+        await bot.send_message(chat_id=tele_id, text="\n".join(lines))
         # Update last_newsletter_sent
         (
             supabase.table("accounts")
@@ -102,6 +102,6 @@ async def _send_newsletter_to_account(bot: Bot, account: dict, now: datetime):
             .eq("account_id", account_id)
             .execute()
         )
-        logger.info("Sent newsletter to telegram_id %s", telegram_id)
+        logger.info("Sent newsletter to tele_id %s", tele_id)
     except Exception as e:
-        logger.error("Failed to send newsletter to %s: %s", telegram_id, e)
+        logger.error("Failed to send newsletter to %s: %s", tele_id, e)

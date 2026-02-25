@@ -11,10 +11,10 @@ supabase: Client = create_client(settings.SUPABASE_URL, settings.SUPABASE_SECRET
 
 # --- Auth ---
 
-def send_verification_email(email: str, redirect_url: str, telegram_id: int, tele_handle: str):
+def send_verification_email(email: str, redirect_url: str, tele_id: int, tele_handle: str):
     """Send a confirmation email for NUS identity verification.
 
-    Stores telegram_id and tele_handle in Supabase Auth user metadata so they
+    Stores tele_id and tele_handle in Supabase Auth user metadata so they
     are available when the confirmation link is clicked — no separate pending table needed.
     """
     supabase.auth.sign_up({
@@ -23,7 +23,7 @@ def send_verification_email(email: str, redirect_url: str, telegram_id: int, tel
         "options": {
             "email_redirect_to": redirect_url,
             "data": {
-                "telegram_id": telegram_id,
+                "tele_id": tele_id,
                 "tele_handle": tele_handle,
             },
         },
@@ -156,12 +156,12 @@ def is_verified_admin(tele_handle: str) -> bool:
     return result.data is not None
 
 
-def is_verified_admin_by_telegram_id(telegram_id: int) -> bool:
+def is_verified_admin_by_tele_id(tele_id: int) -> bool:
     """A user is verified if they have an account record (account_id FK'd to auth.users)."""
     result = (
         supabase.table("accounts")
         .select("account_id")
-        .eq("telegram_id", telegram_id)
+        .eq("tele_id", tele_id)
         .maybe_single()
         .execute()
     )
@@ -173,8 +173,8 @@ def get_account_by_handle(tele_handle: str) -> Optional[dict]:
     return result.data
 
 
-def get_account_by_telegram_id(telegram_id: int) -> Optional[dict]:
-    result = supabase.table("accounts").select("*").eq("telegram_id", telegram_id).maybe_single().execute()
+def get_account_by_tele_id(tele_id: int) -> Optional[dict]:
+    result = supabase.table("accounts").select("*").eq("tele_id", tele_id).maybe_single().execute()
     return result.data
 
 

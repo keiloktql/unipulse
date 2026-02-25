@@ -4,7 +4,7 @@ from telegram import Update
 from telegram.ext import ContextTypes
 
 from app.config import SGT
-from app.services.supabase_client import is_verified_admin_by_telegram_id, supabase
+from app.services.supabase_client import is_verified_admin_by_tele_id, supabase
 
 
 async def delete_event_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -16,7 +16,7 @@ async def delete_event_command(update: Update, context: ContextTypes.DEFAULT_TYP
     event_id = context.args[0]
     user = update.effective_user
 
-    if not is_verified_admin_by_telegram_id(user.id):
+    if not is_verified_admin_by_tele_id(user.id):
         await update.message.reply_text("Only verified admins can delete events.")
         return
 

@@ -6,8 +6,8 @@ from app.services.supabase_client import supabase
 VERIFY_MSG = "🔒 You need to verify your NUS identity first.\nDM me with /verify to get started."
 
 
-def get_verified_account(telegram_id: int) -> Optional[dict]:
-    """Return account for this telegram_id, or None if not found.
+def get_verified_account(tele_id: int) -> Optional[dict]:
+    """Return account for this tele_id, or None if not found.
 
     Having an account record means the user has completed NUS email verification
     (account_id is FK'd to auth.users, so it can only exist post-verification).
@@ -15,7 +15,7 @@ def get_verified_account(telegram_id: int) -> Optional[dict]:
     result = (
         supabase.table("accounts")
         .select("*")
-        .eq("telegram_id", telegram_id)
+        .eq("tele_id", tele_id)
         .maybe_single()
         .execute()
     )
