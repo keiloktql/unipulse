@@ -13,6 +13,7 @@ from app.handlers import (
     browse,
     edit,
     find,
+    help,
     moderation,
     newslettertime,
     parser,
@@ -56,8 +57,9 @@ def create_application():
         per_message=False,
     )
 
-    # /start
+    # /start and /help
     application.add_handler(CommandHandler("start", start.start_command))
+    application.add_handler(CommandHandler("help", help.help_command))
 
     # Verification
     application.add_handler(verify_conv)
@@ -89,5 +91,6 @@ def create_application():
     application.add_handler(CallbackQueryHandler(subscribe.handle_subscription_toggle, pattern=r"^sub:"))
     application.add_handler(CallbackQueryHandler(remind.handle_remind_button, pattern=r"^remind:"))
     application.add_handler(CallbackQueryHandler(moderation.handle_moderation_callback, pattern=r"^mod:"))
+    application.add_handler(CallbackQueryHandler(help.handle_help_callback, pattern=r"^help:"))
 
     return application
