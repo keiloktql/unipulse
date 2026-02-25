@@ -100,20 +100,25 @@ async def receive_otp(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return ConversationHandler.END
 
     try:
+        # Upsert account: create if new, update if re-verifying
         supabase.table("accounts").upsert({
-            "account_id": auth_response.user.id,
+            "account_id": str(auth_response.user.id),
+            "telegram_id": user.id,
             "tele_handle": tele_handle,
+            "is_verified": True,
+            "auth_user_id": str(auth_response.user.id),
         }, on_conflict="account_id").execute()
-        logger.info("Admin verified: @%s (%s)", tele_handle, email)
+        logger.info("User verified: @%s (%s)", tele_handle, email)
     except Exception as e:
         logger.error("Failed to save account: %s", e)
         await update.message.reply_text("Verification succeeded but failed to save account. Please contact support.")
         return ConversationHandler.END
 
     await update.message.reply_text(
-        "✅ You're verified as an admin!\n\n"
-        "You can now post events in authorized group chats.\n"
-        "Include #unipulse and a category tag (e.g. #sports) in your message."
+        "✅ You're verified!\n\n"
+        "You now have full access to UniPulse.\n"
+        "Use /events to browse, /subscribe to follow categories,\n"
+        "and post events in group chats with #unipulse."
     )
 
     # Clean up

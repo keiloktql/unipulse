@@ -1,10 +1,13 @@
 import logging
+from datetime import datetime
 
 from telegram import Update
 from telegram.ext import ContextTypes
 
+from app.handlers.remind import create_reminders_for_event
 from app.services.event_card import build_event_keyboard
-from app.services.supabase_client import get_account_by_handle, get_event, upsert_rsvp
+from app.services.supabase_client import get_event, upsert_rsvp
+from app.services.user_service import VERIFY_MSG, get_verified_account
 
 logger = logging.getLogger(__name__)
 
@@ -19,16 +22,10 @@ async def handle_rsvp(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     _, status, event_id = parts
-    user = query.from_user
 
-    if not user.username:
-        await query.answer("Please set a Telegram username first.", show_alert=True)
-        return
-
-    # Look up account by Telegram handle
-    account = get_account_by_handle(user.username)
+    account = get_verified_account(query.from_user.id)
     if not account:
-        await query.answer("You need to verify first. DM me /verify", show_alert=True)
+        await query.answer(VERIFY_MSG, show_alert=True)
         return
 
     # Atomic upsert via Supabase RPC
@@ -39,6 +36,14 @@ async def handle_rsvp(update: Update, context: ContextTypes.DEFAULT_TYPE):
     event = get_event(event_id)
     if not event:
         return
+
+    # Auto-create reminders when user RSVPs "going"
+    if status == "going" and event.get("date"):
+        try:
+            event_dt = datetime.fromisoformat(event["date"])
+            create_reminders_for_event(account["account_id"], event_id, event_dt)
+        except (ValueError, TypeError):
+            pass
 
     # Rebuild keyboard with updated counts from RPC
     new_keyboard = build_event_keyboard(

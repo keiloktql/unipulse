@@ -13,19 +13,27 @@ client = genai.Client(api_key=settings.GEMINI_API_KEY)
 
 MODEL = "gemini-3-flash-preview"
 
-TEXT_EXTRACTION_PROMPT = """Extract the event date/time from the following message text.
-Return a JSON object with this field:
-- date: string (ISO 8601 datetime e.g. "2026-03-01T19:00:00+08:00", or null if not found)
+TEXT_EXTRACTION_PROMPT = """Extract event details from the following message text.
+Return a JSON object with these fields:
+- title: string (short event title, or null if not determinable)
+- date: string (ISO 8601 start datetime e.g. "2026-03-01T19:00:00+08:00", or null)
+- end_date: string (ISO 8601 end datetime, or null if not found)
+- location: string (event location/venue, or null if not found)
+- description: string (brief event description, or null)
 
-Only return valid JSON. If the date cannot be determined from the text, use null."""
+Only return valid JSON. Use null for fields that cannot be determined."""
 
-IMAGE_EXTRACTION_PROMPT = """I could not find the event date/time from the message text.
+IMAGE_EXTRACTION_PROMPT = """I could not find event details from the message text.
 
-Please look at the attached event poster/image and extract the date/time.
-Return a JSON object with this field:
-- date: string (ISO 8601 datetime e.g. "2026-03-01T19:00:00+08:00", or null if not found)
+Please look at the attached event poster/image and extract:
+Return a JSON object with these fields:
+- title: string (short event title, or null if not determinable)
+- date: string (ISO 8601 start datetime e.g. "2026-03-01T19:00:00+08:00", or null)
+- end_date: string (ISO 8601 end datetime, or null if not found)
+- location: string (event location/venue, or null if not found)
+- description: string (brief event description, or null)
 
-Only return valid JSON. If the date cannot be determined, use null."""
+Only return valid JSON. Use null for fields that cannot be determined."""
 
 
 def parse_text(text: str) -> dict:
@@ -40,7 +48,7 @@ def parse_text(text: str) -> dict:
         return json.loads(response.text)
     except (json.JSONDecodeError, ValueError):
         logger.error("Failed to parse Gemini text response: %s", response.text)
-        return {"date": None}
+        return {"date": None, "title": None, "end_date": None, "location": None, "description": None}
 
 
 def parse_image(image_bytes: bytes) -> dict:
@@ -58,15 +66,21 @@ def parse_image(image_bytes: bytes) -> dict:
         return json.loads(response.text)
     except (json.JSONDecodeError, ValueError):
         logger.error("Failed to parse Gemini image response: %s", response.text)
-        return {"date": None}
+        return {"date": None, "title": None, "end_date": None, "location": None, "description": None}
 
 
 def parse_event(text: str, image_bytes: Optional[bytes] = None) -> dict:
-    """Extract event date: text first, image fallback if date is missing."""
+    """Extract event details: text first, image fallback for missing fields."""
     result = parse_text(text)
 
-    if result.get("date") is None and image_bytes:
-        logger.info("Date not found in text, falling back to image parsing")
-        result = parse_image(image_bytes)
+    if image_bytes:
+        # If date is missing from text, try image
+        if result.get("date") is None:
+            logger.info("Date not found in text, falling back to image parsing")
+            image_result = parse_image(image_bytes)
+            # Fill in missing fields from image result
+            for key in ("date", "title", "end_date", "location", "description"):
+                if result.get(key) is None and image_result.get(key) is not None:
+                    result[key] = image_result[key]
 
     return result

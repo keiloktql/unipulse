@@ -1,14 +1,17 @@
+import hashlib
 import logging
 import re
 
 from telegram import Update
 from telegram.ext import ContextTypes
 
+from app.middleware.rate_limit import check_rate_limit
 from app.services.gemini import parse_event
 from app.services.supabase_client import (
-    get_account_by_handle,
+    get_account_by_telegram_id,
+    get_event_by_hash,
     get_or_create_category,
-    is_verified_admin,
+    is_verified_admin_by_telegram_id,
     link_event_category,
     save_event,
     save_event_image,
@@ -16,21 +19,23 @@ from app.services.supabase_client import (
     upload_image,
 )
 from app.services.event_card import send_event_card
+from app.services.user_service import get_all_categories
 
 logger = logging.getLogger(__name__)
 
-# Common category subtags
-CATEGORY_TAGS = {
-    "sports", "ai", "tech", "freefood", "culture", "social",
-    "academic", "arts", "music", "hackathon", "wellness",
-}
+
+def _compute_event_hash(text: str, date: str | None) -> str:
+    """Hash event text + date to detect duplicates."""
+    content = f"{text.strip().lower()}|{date or ''}"
+    return hashlib.sha256(content.encode()).hexdigest()[:32]
 
 
 def _extract_category(text: str) -> str:
     """Extract category from subtags like #sports, #ai, etc."""
+    known_names = {c["name"] for c in get_all_categories()}
     tags = re.findall(r"#(\w+)", text.lower())
     for tag in tags:
-        if tag != "unipulse" and tag in CATEGORY_TAGS:
+        if tag != "unipulse" and tag in known_names:
             return tag
     for tag in tags:
         if tag != "unipulse":
@@ -44,15 +49,19 @@ async def handle_event_message(update: Update, context: ContextTypes.DEFAULT_TYP
         return
 
     user = message.from_user
-    if not user or not user.username:
-        await message.reply_text("Please set a Telegram username to post events.")
+    if not user:
         return
 
     # Check if poster is a verified admin
-    if not is_verified_admin(user.username):
+    if not is_verified_admin_by_telegram_id(user.id):
         await message.reply_text(
             "⚠️ You need to verify as an admin first. DM me with /verify"
         )
+        return
+
+    # Rate limiting
+    if not check_rate_limit(user.id):
+        await message.reply_text("⚠️ You've reached the posting limit (5/hour). Please wait before posting more events.")
         return
 
     logger.info("Processing #unipulse message from @%s in chat %s", user.username, update.effective_chat.id)
@@ -71,8 +80,14 @@ async def handle_event_message(update: Update, context: ContextTypes.DEFAULT_TYP
     parsed = parse_event(message.text, image_bytes)
     logger.info("Parsed event: %s", parsed)
 
+    # Deduplication check
+    text_hash = _compute_event_hash(message.text, parsed.get("date"))
+    if get_event_by_hash(text_hash):
+        await message.reply_text("This event has already been posted!")
+        return
+
     # Get admin account
-    account = get_account_by_handle(user.username)
+    account = get_account_by_telegram_id(user.id)
     account_id = account["account_id"] if account else None
 
     # Save event to database
@@ -80,6 +95,11 @@ async def handle_event_message(update: Update, context: ContextTypes.DEFAULT_TYP
         text=message.text,
         date=parsed.get("date"),
         account_id=account_id,
+        title=parsed.get("title"),
+        location=parsed.get("location"),
+        description=parsed.get("description"),
+        end_date=parsed.get("end_date"),
+        text_hash=text_hash,
     )
 
     event_id = event["event_id"]

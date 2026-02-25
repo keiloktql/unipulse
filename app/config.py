@@ -1,4 +1,9 @@
+from zoneinfo import ZoneInfo
+
 from pydantic_settings import BaseSettings
+
+# Single source of truth for timezone — GMT+08
+SGT = ZoneInfo("Asia/Singapore")
 
 
 class Settings(BaseSettings):
