@@ -9,6 +9,21 @@ from app.config import settings
 supabase: Client = create_client(settings.SUPABASE_URL, settings.SUPABASE_SECRET_KEY)
 
 
+# --- Auth ---
+
+def send_verification_email(email: str, redirect_url: str):
+    """Send a magic link email for NUS identity verification."""
+    supabase.auth.sign_in_with_otp({
+        "email": email,
+        "options": {"email_redirect_to": redirect_url},
+    })
+
+
+def verify_access_token(access_token: str):
+    """Verify an access token and return the auth user."""
+    return supabase.auth.get_user(access_token).user
+
+
 # --- Events ---
 
 def get_event(event_id: str) -> Optional[dict]:
