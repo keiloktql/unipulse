@@ -7,19 +7,19 @@ from supabase import create_client, Client
 from app.config import settings
 
 supabase: Client = create_client(settings.SUPABASE_URL, settings.SUPABASE_SECRET_KEY)
+supabase_anon: Client = create_client(settings.SUPABASE_URL, settings.SUPABASE_PUBLISHABLE_KEY)
 
 
 # --- Auth ---
 
 def send_verification_email(email: str, redirect_url: str, tele_id: int, tele_handle: str):
-    """Send a confirmation email for NUS identity verification.
+    """Send a magic link email for NUS identity verification.
 
     Stores tele_id and tele_handle in Supabase Auth user metadata so they
     are available when the confirmation link is clicked — no separate pending table needed.
     """
-    supabase.auth.sign_up({
+    supabase_anon.auth.sign_in_with_otp({
         "email": email,
-        "password": str(uuid.uuid4()),
         "options": {
             "email_redirect_to": redirect_url,
             "data": {

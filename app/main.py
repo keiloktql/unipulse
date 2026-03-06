@@ -1,5 +1,4 @@
 import logging
-import urllib.parse
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request, Response
@@ -8,7 +7,7 @@ from telegram import Update
 
 from app.bot import create_application
 from app.config import settings
-from app.services.supabase_client import supabase, verify_access_token
+from app.services.supabase_client import supabase, supabase_anon, verify_access_token
 
 logger = logging.getLogger(__name__)
 
@@ -53,10 +52,9 @@ async def webhook(request: Request):
     return Response(status_code=200)
 
 
-@app.get("/auth/callback/{encoded_email}/auth/confirm")
-async def auth_confirm(request: Request, encoded_email: str):
-    """Supabase sign_up confirmation link redirects here with ?token_hash=...&type=email."""
-    email = urllib.parse.unquote(encoded_email)
+@app.get("/auth/callback")
+async def auth_confirm(request: Request):
+    """Supabase magic link redirects here with ?token_hash=...&type=email (custom email template)."""
     token_hash = request.query_params.get("token_hash")
     token_type = request.query_params.get("type", "email")
 
@@ -74,7 +72,7 @@ async def auth_confirm(request: Request, encoded_email: str):
         return html_result("Error", "No token found. Please try /verify again.")
 
     try:
-        result = supabase.auth.verify_otp({"email": email, "token_hash": token_hash, "type": token_type})
+        result = supabase_anon.auth.verify_otp({"token_hash": token_hash, "type": token_type})
     except Exception as e:
         logger.exception("verify_otp failed: %s", e)
         return html_result("Verification failed", "Invalid or expired link. Please try /verify again.")

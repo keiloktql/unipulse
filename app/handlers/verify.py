@@ -1,6 +1,5 @@
 import logging
 import re
-import urllib.parse
 
 from telegram import Update
 from telegram.ext import ContextTypes, ConversationHandler
@@ -50,7 +49,7 @@ async def receive_email(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         send_verification_email(
             email,
-            f"{settings.WEBHOOK_URL}/auth/callback/{urllib.parse.quote(email, safe='')}",
+            f"{settings.WEBHOOK_URL}/auth/callback",
             tele_id=user.id,
             tele_handle=user.username,
         )
