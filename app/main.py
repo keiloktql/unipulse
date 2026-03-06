@@ -54,7 +54,12 @@ async def webhook(request: Request):
 
 @app.get("/auth/callback")
 async def auth_confirm(request: Request):
-    """Supabase magic link redirects here with ?token_hash=...&type=email (custom email template)."""
+    """Supabase redirects here after email verification.
+
+    PKCE flow (default): ?code=...
+    Token hash flow: ?token_hash=...&type=...
+    """
+    code = request.query_params.get("code")
     token_hash = request.query_params.get("token_hash")
     token_type = request.query_params.get("type", "email")
 
@@ -68,13 +73,16 @@ async def auth_confirm(request: Request):
 </body>
 </html>""")
 
-    if not token_hash:
+    if not code and not token_hash:
         return html_result("Error", "No token found. Please try /verify again.")
 
     try:
-        result = supabase_anon.auth.verify_otp({"token_hash": token_hash, "type": token_type})
+        if code:
+            result = supabase_anon.auth.exchange_code_for_session({"auth_code": code})
+        else:
+            result = supabase_anon.auth.verify_otp({"token_hash": token_hash, "type": token_type})
     except Exception as e:
-        logger.exception("verify_otp failed: %s", e)
+        logger.exception("Auth verification failed: %s", e)
         return html_result("Verification failed", "Invalid or expired link. Please try /verify again.")
 
     auth_user = result.user if result else None
