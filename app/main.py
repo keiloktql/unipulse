@@ -2,12 +2,10 @@ import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request, Response
-from fastapi.responses import HTMLResponse, JSONResponse
 from telegram import Update
 
 from app.bot import create_application
 from app.config import settings
-from app.services.supabase_client import supabase, supabase_anon, verify_access_token
 
 logger = logging.getLogger(__name__)
 
@@ -50,120 +48,6 @@ async def webhook(request: Request):
     update = Update.de_json(data=data, bot=ptb_app.bot)
     await ptb_app.process_update(update)
     return Response(status_code=200)
-
-
-@app.get("/auth/callback")
-async def auth_confirm(request: Request):
-    """Supabase redirects here after email verification.
-
-    PKCE flow (default): ?code=...
-    Token hash flow: ?token_hash=...&type=...
-    """
-    code = request.query_params.get("code")
-    token_hash = request.query_params.get("token_hash")
-    token_type = request.query_params.get("type", "email")
-
-    def html_result(title: str, message: str) -> HTMLResponse:
-        return HTMLResponse(content=f"""<!DOCTYPE html>
-<html>
-<head><title>UniPulse Verification</title></head>
-<body style="font-family:sans-serif;text-align:center;padding:40px">
-<h2>{title}</h2>
-<p>{message}</p>
-</body>
-</html>""")
-
-    if not code and not token_hash:
-        return html_result("Error", "No token found. Please try /verify again.")
-
-    try:
-        if code:
-            result = supabase_anon.auth.exchange_code_for_session({"auth_code": code})
-        else:
-            result = supabase_anon.auth.verify_otp({"token_hash": token_hash, "type": token_type})
-    except Exception as e:
-        logger.exception("Auth verification failed: %s", e)
-        return html_result("Verification failed", "Invalid or expired link. Please try /verify again.")
-
-    auth_user = result.user if result else None
-    if not auth_user or not auth_user.email:
-        return html_result("Verification failed", "Could not verify email. Please try /verify again.")
-
-    meta = auth_user.user_metadata or {}
-    tele_id = meta.get("tele_id")
-    tele_handle = meta.get("tele_handle")
-    if not tele_id or not tele_handle:
-        return html_result("Verification failed", "No pending verification found. Please run /verify first.")
-
-    account_id = str(auth_user.id)
-    try:
-        supabase.table("accounts").upsert({
-            "account_id": account_id,
-            "tele_id": tele_id,
-            "tele_handle": tele_handle,
-        }, on_conflict="account_id").execute()
-        logger.info("User verified: @%s (%s)", tele_handle, auth_user.email)
-    except Exception as e:
-        logger.error("Failed to save account: %s", e)
-        return html_result("Error", "Verification succeeded but failed to save. Please contact support.")
-
-    if ptb_app:
-        try:
-            from app.handlers.onboarding import send_onboarding
-            await send_onboarding(ptb_app.bot, tele_id, account_id)
-        except Exception as e:
-            logger.error("Failed to send onboarding to %s: %s", tele_id, e)
-
-    return html_result("Verified!", "You're verified! You can close this tab and return to Telegram.")
-
-
-@app.post("/auth/complete")
-async def auth_complete(request: Request):
-    """Verify access token, create account, send onboarding via Telegram."""
-    data = await request.json()
-    access_token = data.get("access_token")
-    if not access_token:
-        return JSONResponse({"ok": False, "message": "Missing token."})
-
-    # Verify token with Supabase Auth
-    try:
-        auth_user = verify_access_token(access_token)
-    except Exception:
-        return JSONResponse({"ok": False, "message": "Invalid or expired token. Please try /verify again."})
-
-    if not auth_user or not auth_user.email:
-        return JSONResponse({"ok": False, "message": "Could not verify email. Please try /verify again."})
-
-    # Read tele_id and tele_handle from Auth user metadata (set at OTP send time)
-    meta = auth_user.user_metadata or {}
-    tele_id = meta.get("tele_id")
-    tele_handle = meta.get("tele_handle")
-    if not tele_id or not tele_handle:
-        return JSONResponse({"ok": False, "message": "No pending verification found. Please run /verify first."})
-
-    # Create/update account
-    account_id = str(auth_user.id)
-    email = auth_user.email.lower()
-    try:
-        supabase.table("accounts").upsert({
-            "account_id": account_id,
-            "tele_id": tele_id,
-            "tele_handle": tele_handle,
-        }, on_conflict="account_id").execute()
-        logger.info("User verified: @%s (%s)", tele_handle, email)
-    except Exception as e:
-        logger.error("Failed to save account: %s", e)
-        return JSONResponse({"ok": False, "message": "Verification succeeded but failed to save. Please contact support."})
-
-    # Send full onboarding flow via Telegram
-    if ptb_app:
-        try:
-            from app.handlers.onboarding import send_onboarding
-            await send_onboarding(ptb_app.bot, tele_id, account_id)
-        except Exception as e:
-            logger.error("Failed to send onboarding to %s: %s", tele_id, e)
-
-    return JSONResponse({"ok": True, "message": "You're verified! You can close this tab and return to Telegram."})
 
 
 @app.get("/health")

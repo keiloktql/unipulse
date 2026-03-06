@@ -12,21 +12,30 @@ supabase_anon: Client = create_client(settings.SUPABASE_URL, settings.SUPABASE_P
 
 # --- Auth ---
 
-def send_verification_email(email: str, redirect_url: str, tele_id: int, tele_handle: str):
-    """Send a magic link email for NUS identity verification.
+def send_verification_email(email: str, tele_id: int, tele_handle: str):
+    """Send a 6-digit OTP code email for NUS identity verification.
 
     Stores tele_id and tele_handle in Supabase Auth user metadata so they
-    are available when the confirmation link is clicked — no separate pending table needed.
+    are available at verify time — no separate pending table needed.
     """
     supabase_anon.auth.sign_in_with_otp({
         "email": email,
         "options": {
-            "email_redirect_to": redirect_url,
+            "should_create_user": True,
             "data": {
                 "tele_id": tele_id,
                 "tele_handle": tele_handle,
             },
         },
+    })
+
+
+def verify_email_otp(email: str, otp_code: str):
+    """Verify a 6-digit OTP code and return the session result."""
+    return supabase_anon.auth.verify_otp({
+        "email": email,
+        "token": otp_code,
+        "type": "email",
     })
 
 

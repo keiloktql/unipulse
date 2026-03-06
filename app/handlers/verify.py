@@ -4,12 +4,16 @@ import re
 from telegram import Update
 from telegram.ext import ContextTypes, ConversationHandler
 
-from app.config import settings
-from app.services.supabase_client import send_verification_email
+from app.services.supabase_client import (
+    send_verification_email,
+    supabase,
+    verify_email_otp,
+)
 
 logger = logging.getLogger(__name__)
 
 EMAIL = 0
+OTP_CODE = 1
 
 NUS_EMAIL_PATTERN = re.compile(r"^[^@]+@(u\.nus\.edu|nus\.edu\.sg)$", re.IGNORECASE)
 
@@ -44,28 +48,79 @@ async def receive_email(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     user = update.effective_user
 
-    # Send magic link — tele_id and tele_handle are embedded in Auth user metadata
-    # so they're available at callback time without any separate storage
     try:
         send_verification_email(
             email,
-            f"{settings.WEBHOOK_URL}/auth/callback",
             tele_id=user.id,
             tele_handle=user.username,
         )
-        logger.info("Confirmation email sent to %s for user @%s", email, user.username)
+        logger.info("OTP email sent to %s for user @%s", email, user.username)
     except Exception as e:
-        logger.exception("Failed to send confirmation email: %s", e)
+        logger.exception("Failed to send OTP email: %s", e)
         await update.message.reply_text(
             "Failed to send verification email. Please try again later.\n"
             "Use /verify to restart."
         )
         return ConversationHandler.END
 
+    context.user_data["verify_email"] = email
     await update.message.reply_text(
-        f"A confirmation email has been sent to {email}\n\n"
-        "Please check your inbox (and spam folder) and click the link to verify."
+        f"A 6-digit code has been sent to {email}\n\n"
+        "Please check your inbox (and spam folder) and enter the code here:"
     )
+    return OTP_CODE
+
+
+async def receive_otp(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    otp_code = update.message.text.strip()
+    email = context.user_data.get("verify_email")
+
+    if not email:
+        await update.message.reply_text("Session expired. Please use /verify to start again.")
+        return ConversationHandler.END
+
+    if not re.match(r"^\d{6}$", otp_code):
+        await update.message.reply_text("Please enter the 6-digit code from your email:")
+        return OTP_CODE
+
+    try:
+        result = verify_email_otp(email, otp_code)
+    except Exception as e:
+        logger.exception("OTP verification failed for %s: %s", email, e)
+        await update.message.reply_text(
+            "Invalid or expired code. Please try /verify again."
+        )
+        return ConversationHandler.END
+
+    auth_user = result.user if result else None
+    if not auth_user:
+        await update.message.reply_text("Verification failed. Please try /verify again.")
+        return ConversationHandler.END
+
+    meta = auth_user.user_metadata or {}
+    tele_id = meta.get("tele_id")
+    tele_handle = meta.get("tele_handle")
+    account_id = str(auth_user.id)
+
+    try:
+        supabase.table("accounts").upsert({
+            "account_id": account_id,
+            "tele_id": tele_id,
+            "tele_handle": tele_handle,
+        }, on_conflict="account_id").execute()
+        logger.info("User verified: @%s (%s)", tele_handle, email)
+    except Exception as e:
+        logger.error("Failed to save account: %s", e)
+        await update.message.reply_text("Verification succeeded but failed to save. Please contact support.")
+        return ConversationHandler.END
+
+    try:
+        from app.handlers.onboarding import send_onboarding
+        await send_onboarding(update.effective_chat.get_bot(), tele_id, account_id)
+    except Exception as e:
+        logger.error("Failed to send onboarding to %s: %s", tele_id, e)
+
+    await update.message.reply_text("You're verified! Welcome to UniPulse.")
     return ConversationHandler.END
 
 

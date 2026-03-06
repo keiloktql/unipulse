@@ -38,6 +38,7 @@ def create_application():
         entry_points=[CommandHandler("verify", verify.start_verify)],
         states={
             verify.EMAIL: [MessageHandler(filters.TEXT & ~filters.COMMAND, verify.receive_email)],
+            verify.OTP_CODE: [MessageHandler(filters.TEXT & ~filters.COMMAND, verify.receive_otp)],
         },
         fallbacks=[CommandHandler("cancel", verify.cancel)],
     )
