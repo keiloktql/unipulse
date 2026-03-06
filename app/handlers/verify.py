@@ -65,7 +65,7 @@ async def receive_email(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     context.user_data["verify_email"] = email
     await update.message.reply_text(
-        f"A 6-digit code has been sent to {email}\n\n"
+        f"A verification code has been sent to {email}\n\n"
         "Please check your inbox (and spam folder) and enter the code here:"
     )
     return OTP_CODE
@@ -79,8 +79,8 @@ async def receive_otp(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("Session expired. Please use /verify to start again.")
         return ConversationHandler.END
 
-    if not re.match(r"^\d{6}$", otp_code):
-        await update.message.reply_text("Please enter the 6-digit code from your email:")
+    if not re.match(r"^\d{6,8}$", otp_code):
+        await update.message.reply_text("Please enter the code from your email:")
         return OTP_CODE
 
     try:
