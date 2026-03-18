@@ -129,7 +129,7 @@ def save_event_image(event_id: str, url: str) -> dict:
 # --- RSVPs ---
 
 def upsert_rsvp(event_id: str, account_id: str) -> int:
-    """Toggle RSVP for this user+event. Returns updated total RSVP count."""
+    """Toggle RSVP for this user+event. Returns updated total count."""
     result = supabase.rpc("upsert_rsvp", {
         "p_event_id": event_id,
         "p_account_id": account_id,

@@ -16,19 +16,21 @@ async def handle_rsvp(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
 
-    # Parse callback data: "rsvp:event_uuid"
-    parts = query.data.split(":", 1)
-    if len(parts) != 2:
+    # Parse callback data: "rsvp:going:<event_uuid>" or legacy "rsvp:<event_uuid>"
+    parts = query.data.split(":")
+    if len(parts) == 2:
+        event_id = parts[1]
+    elif len(parts) == 3:
+        event_id = parts[2]
+    else:
         return
-
-    _, event_id = parts
 
     account = get_verified_account(query.from_user.id)
     if not account:
         await query.answer(VERIFY_MSG, show_alert=True)
         return
 
-    # Atomic RSVP toggle via Supabase RPC — returns updated total count
+    # Atomic RSVP toggle via Supabase RPC — returns updated count
     new_count = upsert_rsvp(event_id, account["account_id"])
     logger.info("RSVP toggled: event=%s account=%s new_count=%s", event_id, account["account_id"], new_count)
 
@@ -46,7 +48,7 @@ async def handle_rsvp(update: Update, context: ContextTypes.DEFAULT_TYPE):
             pass
 
     # Rebuild keyboard with updated count
-    new_keyboard = build_event_keyboard(event, rsvp_count=new_count)
+    new_keyboard = build_event_keyboard(event, going=new_count)
 
     try:
         await query.edit_message_reply_markup(reply_markup=new_keyboard)

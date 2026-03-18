@@ -16,14 +16,14 @@ def build_event_text(event: dict) -> str:
     return "\n".join(lines)
 
 
-def build_event_keyboard(event: dict, rsvp_count: int = 0) -> InlineKeyboardMarkup:
+def build_event_keyboard(event: dict, going: int = 0) -> InlineKeyboardMarkup:
     event_id = event["event_id"]
 
     rows = [
         [
             InlineKeyboardButton(
-                f"RSVP \U0001f64b ({rsvp_count})",
-                callback_data=f"rsvp:{event_id}",
+                f"Going ({going})",
+                callback_data=f"rsvp:going:{event_id}",
             ),
         ],
         [
@@ -49,7 +49,7 @@ async def send_event_card(bot: Bot, chat_id: int, event: dict):
 
     text = build_event_text(event)
     count = get_rsvp_counts(event["event_id"])
-    keyboard = build_event_keyboard(event, rsvp_count=count)
+    keyboard = build_event_keyboard(event, going=count)
 
     image_url = event.get("image_url")
     if not image_url:
