@@ -52,8 +52,8 @@ def get_event(event_id: str) -> Optional[dict]:
 
 
 def get_event_by_text(text: str) -> Optional[dict]:
-    result = supabase.table("events").select("event_id").eq("text", text).maybe_single().execute()
-    return result.data
+    result = supabase.table("events").select("event_id").eq("text", text).limit(1).execute()
+    return result.data[0] if result.data else None
 
 
 def save_event(
