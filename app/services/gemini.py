@@ -14,10 +14,11 @@ client = genai.Client(api_key=settings.GEMINI_API_KEY)
 MODEL = "gemini-3-flash-preview"
 
 TEXT_EXTRACTION_PROMPT = """Extract event details from the following message text.
+All events are in Singapore (GMT+08:00). Always use +08:00 timezone offset for all dates.
 Return a JSON object with these fields:
 - title: string (short event title, or null if not determinable)
-- date: string (ISO 8601 start datetime e.g. "2026-03-01T19:00:00+08:00", or null)
-- end_date: string (ISO 8601 end datetime, or null if not found)
+- date: string (ISO 8601 start datetime with SGT offset, e.g. "2026-03-01T19:00:00+08:00", or null)
+- end_date: string (ISO 8601 end datetime with SGT offset, or null if not found)
 - location: string (event location/venue, or null if not found)
 - description: string (brief event description, or null)
 
@@ -26,10 +27,11 @@ Only return valid JSON. Use null for fields that cannot be determined."""
 IMAGE_EXTRACTION_PROMPT = """I could not find event details from the message text.
 
 Please look at the attached event poster/image and extract:
+All events are in Singapore (GMT+08:00). Always use +08:00 timezone offset for all dates.
 Return a JSON object with these fields:
 - title: string (short event title, or null if not determinable)
-- date: string (ISO 8601 start datetime e.g. "2026-03-01T19:00:00+08:00", or null)
-- end_date: string (ISO 8601 end datetime, or null if not found)
+- date: string (ISO 8601 start datetime with SGT offset, e.g. "2026-03-01T19:00:00+08:00", or null)
+- end_date: string (ISO 8601 end datetime with SGT offset, or null if not found)
 - location: string (event location/venue, or null if not found)
 - description: string (brief event description, or null)
 

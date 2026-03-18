@@ -108,8 +108,8 @@ async def handle_event_message(update: Update, context: ContextTypes.DEFAULT_TYP
         ec = link_event_category(event_id, category["category_id"])
         update_event_refs(event_id, ec_id=ec["ec_id"])
 
-        # Send event card back to the group
-        await send_event_card(context.bot, update.effective_chat.id, event)
+        # Send event card as DM to the poster
+        await send_event_card(context.bot, user.id, event)
 
     except Exception:
         logger.exception("Failed to process #unipulse message from @%s", user.username)
