@@ -11,10 +11,10 @@ from app.services.user_service import VERIFY_MSG, get_verified_account
 async def handle_remind_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle callback_data like 'remind:<event_id>'."""
     query = update.callback_query
-    await query.answer()
 
     parts = query.data.split(":")
     if len(parts) != 2:
+        await query.answer()
         return
     _, event_id = parts
 
