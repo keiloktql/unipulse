@@ -47,8 +47,8 @@ def verify_access_token(access_token: str):
 # --- Events ---
 
 def get_event(event_id: str) -> Optional[dict]:
-    result = supabase.table("events").select("*").eq("event_id", event_id).maybe_single().execute()
-    return result.data
+    result = supabase.table("events").select("*").eq("event_id", event_id).limit(1).execute()
+    return result.data[0] if result.data else None
 
 
 def get_event_by_text(text: str) -> Optional[dict]:
@@ -93,9 +93,9 @@ def update_event_refs(event_id: str, ec_id: Optional[str] = None, ei_id: Optiona
 # --- Categories ---
 
 def get_or_create_category(name: str) -> dict:
-    result = supabase.table("categories").select("*").eq("name", name).maybe_single().execute()
+    result = supabase.table("categories").select("*").eq("name", name).limit(1).execute()
     if result.data:
-        return result.data
+        return result.data[0]
     result = supabase.table("categories").insert({"name": name}).execute()
     return result.data[0]
 
@@ -156,10 +156,10 @@ def is_verified_admin(tele_handle: str) -> bool:
         supabase.table("accounts")
         .select("account_id")
         .eq("tele_handle", tele_handle)
-        .maybe_single()
+        .limit(1)
         .execute()
     )
-    return result.data is not None
+    return len(result.data) > 0
 
 
 def is_verified_admin_by_tele_id(tele_id: int) -> bool:
@@ -168,20 +168,20 @@ def is_verified_admin_by_tele_id(tele_id: int) -> bool:
         supabase.table("accounts")
         .select("account_id")
         .eq("tele_id", tele_id)
-        .maybe_single()
+        .limit(1)
         .execute()
     )
-    return result.data is not None
+    return len(result.data) > 0
 
 
 def get_account_by_handle(tele_handle: str) -> Optional[dict]:
-    result = supabase.table("accounts").select("*").eq("tele_handle", tele_handle).maybe_single().execute()
-    return result.data
+    result = supabase.table("accounts").select("*").eq("tele_handle", tele_handle).limit(1).execute()
+    return result.data[0] if result.data else None
 
 
 def get_account_by_tele_id(tele_id: int) -> Optional[dict]:
-    result = supabase.table("accounts").select("*").eq("tele_id", tele_id).maybe_single().execute()
-    return result.data
+    result = supabase.table("accounts").select("*").eq("tele_id", tele_id).limit(1).execute()
+    return result.data[0] if result.data else None
 
 
 # --- Browse ---
