@@ -45,7 +45,8 @@ def _extract_category(text: str) -> str:
 
 async def handle_event_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     message = update.effective_message
-    if not message or not message.text:
+    text = message.text or message.caption if message else None
+    if not message or not text:
         return
 
     user = message.from_user
@@ -68,53 +69,58 @@ async def handle_event_message(update: Update, context: ContextTypes.DEFAULT_TYP
         await message.reply_text("⚠️ You've reached the posting limit (5/hour). Please wait before posting more events.")
         return
 
-    logger.info("Processing #unipulse message from @%s in chat %s", user.username, update.effective_chat.id)
+    try:
+        logger.info("Processing #unipulse message from @%s in chat %s", user.username, update.effective_chat.id)
 
-    # Extract category from subtags
-    category_name = _extract_category(message.text)
+        # Extract category from subtags
+        category_name = _extract_category(text)
 
-    # Download image if present
-    image_bytes = None
-    if message.photo:
-        photo = message.photo[-1]  # Highest resolution
-        file = await photo.get_file()
-        image_bytes = bytes(await file.download_as_bytearray())
+        # Download image if present
+        image_bytes = None
+        if message.photo:
+            photo = message.photo[-1]  # Highest resolution
+            file = await photo.get_file()
+            image_bytes = bytes(await file.download_as_bytearray())
 
-    # Parse event with Gemini (text first, image fallback) to extract date
-    parsed = parse_event(message.text, image_bytes)
-    logger.info("Parsed event: %s", parsed)
+        # Parse event with Gemini (text first, image fallback) to extract date
+        parsed = parse_event(text, image_bytes)
+        logger.info("Parsed event: %s", parsed)
 
-    # Deduplication check
-    text_hash = _compute_event_hash(message.text, parsed.get("date"))
-    if get_event_by_hash(text_hash):
-        await message.reply_text("This event has already been posted!")
-        return
+        # Deduplication check
+        text_hash = _compute_event_hash(text, parsed.get("date"))
+        if get_event_by_hash(text_hash):
+            await message.reply_text("This event has already been posted!")
+            return
 
-    # Save event to database
-    event = save_event(
-        text=message.text,
-        date=parsed.get("date"),
-        account_id=account_id,
-        title=parsed.get("title"),
-        location=parsed.get("location"),
-        description=parsed.get("description"),
-        end_date=parsed.get("end_date"),
-        text_hash=text_hash,
-    )
+        # Save event to database
+        event = save_event(
+            text=text,
+            date=parsed.get("date"),
+            account_id=account_id,
+            title=parsed.get("title"),
+            location=parsed.get("location"),
+            description=parsed.get("description"),
+            end_date=parsed.get("end_date"),
+            text_hash=text_hash,
+        )
 
-    event_id = event["event_id"]
+        event_id = event["event_id"]
 
-    # Upload image to storage and save reference
-    if image_bytes:
-        image_url = upload_image(image_bytes)
-        ei = save_event_image(event_id, image_url)
-        update_event_refs(event_id, ei_id=ei["ei_id"])
-        event["image_url"] = image_url
+        # Upload image to storage and save reference
+        if image_bytes:
+            image_url = upload_image(image_bytes)
+            ei = save_event_image(event_id, image_url)
+            update_event_refs(event_id, ei_id=ei["ei_id"])
+            event["image_url"] = image_url
 
-    # Create/link category
-    category = get_or_create_category(category_name)
-    ec = link_event_category(event_id, category["category_id"])
-    update_event_refs(event_id, ec_id=ec["ec_id"])
+        # Create/link category
+        category = get_or_create_category(category_name)
+        ec = link_event_category(event_id, category["category_id"])
+        update_event_refs(event_id, ec_id=ec["ec_id"])
 
-    # Send event card back to the group
-    await send_event_card(context.bot, update.effective_chat.id, event)
+        # Send event card back to the group
+        await send_event_card(context.bot, update.effective_chat.id, event)
+
+    except Exception:
+        logger.exception("Failed to process #unipulse message from @%s", user.username)
+        await message.reply_text("⚠️ Something went wrong processing this event. Please try again.")

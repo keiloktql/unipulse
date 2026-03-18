@@ -69,14 +69,14 @@ async def send_event_card(bot: Bot, chat_id: int, event: dict):
             chat_id=chat_id,
             photo=image_url,
             caption=text,
-            parse_mode="Markdown",
+            parse_mode="MarkdownV2",
             reply_markup=keyboard,
         )
     else:
         await bot.send_message(
             chat_id=chat_id,
             text=text,
-            parse_mode="Markdown",
+            parse_mode="MarkdownV2",
             reply_markup=keyboard,
         )
 
