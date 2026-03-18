@@ -51,8 +51,8 @@ def get_event(event_id: str) -> Optional[dict]:
     return result.data
 
 
-def get_event_by_hash(text_hash: str) -> Optional[dict]:
-    result = supabase.table("events").select("event_id").eq("text_hash", text_hash).maybe_single().execute()
+def get_event_by_text(text: str) -> Optional[dict]:
+    result = supabase.table("events").select("event_id").eq("text", text).maybe_single().execute()
     return result.data
 
 
@@ -64,7 +64,6 @@ def save_event(
     location: Optional[str] = None,
     description: Optional[str] = None,
     end_date: Optional[str] = None,
-    text_hash: Optional[str] = None,
 ) -> dict:
     data = {"text": text, "fk_account_id": account_id}
     if date:
@@ -77,8 +76,6 @@ def save_event(
         data["description"] = description
     if end_date:
         data["end_date"] = end_date
-    if text_hash:
-        data["text_hash"] = text_hash
     result = supabase.table("events").insert(data).execute()
     return result.data[0]
 

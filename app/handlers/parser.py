@@ -1,4 +1,3 @@
-import hashlib
 import logging
 import re
 
@@ -9,7 +8,7 @@ from app.middleware.rate_limit import check_rate_limit
 from app.services.gemini import parse_event
 from app.services.supabase_client import (
     get_account_by_tele_id,
-    get_event_by_hash,
+    get_event_by_text,
     get_or_create_category,
     is_verified_admin_by_tele_id,
     link_event_category,
@@ -22,12 +21,6 @@ from app.services.event_card import send_event_card
 from app.services.user_service import get_all_categories
 
 logger = logging.getLogger(__name__)
-
-
-def _compute_event_hash(text: str, date: str | None) -> str:
-    """Hash event text + date to detect duplicates."""
-    content = f"{text.strip().lower()}|{date or ''}"
-    return hashlib.sha256(content.encode()).hexdigest()[:32]
 
 
 def _extract_category(text: str) -> str:
@@ -53,23 +46,22 @@ async def handle_event_message(update: Update, context: ContextTypes.DEFAULT_TYP
     if not user:
         return
 
-    # Check if poster is a verified user
-    if not is_verified_admin_by_tele_id(user.id):
-        await message.reply_text(
-            "⚠️ You need to verify as an admin first. DM me with /verify"
-        )
-        return
-
-    # Fetch account early so we can pass account_id to rate limiter
-    account = get_account_by_tele_id(user.id)
-    account_id = account["account_id"] if account else None
-
-    # Rate limiting (DB-backed, persists across restarts)
-    if account_id and not check_rate_limit(account_id):
-        await message.reply_text("⚠️ You've reached the posting limit (5/hour). Please wait before posting more events.")
-        return
-
     try:
+        # Check if poster is a verified user
+        if not is_verified_admin_by_tele_id(user.id):
+            await message.reply_text(
+                "⚠️ You need to verify as an admin first. DM me with /verify"
+            )
+            return
+
+        # Fetch account early so we can pass account_id to rate limiter
+        account = get_account_by_tele_id(user.id)
+        account_id = account["account_id"] if account else None
+
+        # Rate limiting (DB-backed, persists across restarts)
+        if account_id and not check_rate_limit(account_id):
+            await message.reply_text("⚠️ You've reached the posting limit (5/hour). Please wait before posting more events.")
+            return
         logger.info("Processing #unipulse message from @%s in chat %s", user.username, update.effective_chat.id)
 
         # Extract category from subtags
@@ -87,8 +79,7 @@ async def handle_event_message(update: Update, context: ContextTypes.DEFAULT_TYP
         logger.info("Parsed event: %s", parsed)
 
         # Deduplication check
-        text_hash = _compute_event_hash(text, parsed.get("date"))
-        if get_event_by_hash(text_hash):
+        if get_event_by_text(text):
             await message.reply_text("This event has already been posted!")
             return
 
@@ -101,7 +92,6 @@ async def handle_event_message(update: Update, context: ContextTypes.DEFAULT_TYP
             location=parsed.get("location"),
             description=parsed.get("description"),
             end_date=parsed.get("end_date"),
-            text_hash=text_hash,
         )
 
         event_id = event["event_id"]
