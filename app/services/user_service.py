@@ -16,10 +16,10 @@ def get_verified_account(tele_id: int) -> Optional[dict]:
         supabase.table("accounts")
         .select("*")
         .eq("tele_id", tele_id)
-        .maybe_single()
+        .limit(1)
         .execute()
     )
-    return result.data
+    return result.data[0] if result.data else None
 
 
 def get_all_categories() -> List[dict]:
@@ -54,14 +54,14 @@ def toggle_subscription(account_id: str, category_id: str) -> bool:
         .select("ac_id")
         .eq("fk_account_id", account_id)
         .eq("fk_category_id", category_id)
-        .maybe_single()
+        .limit(1)
         .execute()
     )
     if existing.data:
         (
             supabase.table("account_categories")
             .delete()
-            .eq("ac_id", existing.data["ac_id"])
+            .eq("ac_id", existing.data[0]["ac_id"])
             .execute()
         )
         return False

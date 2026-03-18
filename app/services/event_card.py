@@ -16,7 +16,7 @@ def build_event_text(event: dict) -> str:
     return "\n".join(lines)
 
 
-def build_event_keyboard(event: dict, rsvp_count: int = 0, bot_username: str = "") -> InlineKeyboardMarkup:
+def build_event_keyboard(event: dict, rsvp_count: int = 0) -> InlineKeyboardMarkup:
     event_id = event["event_id"]
 
     rows = [
@@ -41,12 +41,6 @@ def build_event_keyboard(event: dict, rsvp_count: int = 0, bot_username: str = "
             InlineKeyboardButton("📅 Add to Calendar", url=gcal_url),
         ])
 
-    # Share deep link
-    if bot_username:
-        rows.append([
-            InlineKeyboardButton("🔗 Share", url=f"https://t.me/{bot_username}?start=event_{event_id}"),
-        ])
-
     return InlineKeyboardMarkup(rows)
 
 
@@ -55,8 +49,7 @@ async def send_event_card(bot: Bot, chat_id: int, event: dict):
 
     text = build_event_text(event)
     count = get_rsvp_counts(event["event_id"])
-    bot_username = (await bot.get_me()).username or ""
-    keyboard = build_event_keyboard(event, rsvp_count=count, bot_username=bot_username)
+    keyboard = build_event_keyboard(event, rsvp_count=count)
 
     image_url = event.get("image_url")
     if not image_url:

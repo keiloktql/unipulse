@@ -54,7 +54,7 @@ def create_reminders_for_event(account_id: str, event_id: str, event_dt: datetim
             .eq("fk_account_id", account_id)
             .eq("fk_event_id", event_id)
             .eq("remind_at", remind_at.isoformat())
-            .maybe_single()
+            .limit(1)
             .execute()
         )
         if not existing.data:

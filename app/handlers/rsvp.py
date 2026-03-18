@@ -46,8 +46,7 @@ async def handle_rsvp(update: Update, context: ContextTypes.DEFAULT_TYPE):
             pass
 
     # Rebuild keyboard with updated count
-    bot_username = (await query.get_bot().get_me()).username or ""
-    new_keyboard = build_event_keyboard(event, rsvp_count=new_count, bot_username=bot_username)
+    new_keyboard = build_event_keyboard(event, rsvp_count=new_count)
 
     try:
         await query.edit_message_reply_markup(reply_markup=new_keyboard)
